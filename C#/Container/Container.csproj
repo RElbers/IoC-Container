@@ -84,12 +84,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Source\AbstractContainer.cs" />
     <Compile Include="Source\Attributes\InjectConstructorAttribute.cs" />
+    <Compile Include="Source\CompiledContainer.cs" />
     <Compile Include="Source\Exceptions\CircularDependencyException.cs" />
     <Compile Include="Source\Exceptions\NoAvailableConstructorException.cs" />
     <Compile Include="Source\Exceptions\NotRegisteredException.cs" />
     <Compile Include="Source\IIoCContainer.cs" />
-    <Compile Include="Source\IoCContainer.cs" />
+    <Compile Include="Source\ReflectiveContainer.cs" />
     <Compile Include="Source\FuncWrapper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

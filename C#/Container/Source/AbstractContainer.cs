@@ -7,29 +7,19 @@ using IoC.Source.Exceptions;
 
 namespace IoC.Source
 {
-    public class IoCContainer : IIoCContainer
+    public abstract class AbstractContainer : IIoCContainer
     {
         private readonly Dictionary<Type, Type> _typeToType = new Dictionary<Type, Type>();
         private readonly Dictionary<Type, object> _typeToInstance = new Dictionary<Type, object>();
         private readonly Dictionary<Type, IFuncWrapper> _typeToFunc = new Dictionary<Type, IFuncWrapper>();
 
-        /// <summary>
-        ///     Registers a type to be available for resolving.
-        ///     Only interfaces and abstract classes need to be registered.
-        /// </summary>
-        /// <typeparam name="TContract">Registers this type so it is available for resolving.</typeparam>
-        /// <typeparam name="TImplementation">Type that implements TContract.</typeparam>
+        /// <inheritdoc />
         public void RegisterType<TContract, TImplementation>() where TImplementation : TContract
         {
             _typeToType[typeof(TContract)] = typeof(TImplementation);
         }
 
-        /// <summary>
-        ///     Registers a type to be available for resolving.
-        ///     When resolving this type, the registered instance will be returned.
-        /// </summary>
-        /// <typeparam name="TContract">Registers this type so it is available for resolving.</typeparam>
-        /// <param name="instance">This instance will be returned when resolving TContract</param>
+        /// <inheritdoc />
         public void RegisterInstance<TContract>(TContract instance)
         {
             if (instance == null)
@@ -37,12 +27,7 @@ namespace IoC.Source
             _typeToInstance[typeof(TContract)] = instance;
         }
 
-        /// <summary>
-        ///     Registers a type to be available for resolving.
-        ///     When resolving this type, func will be invoked and TResult will be returned.
-        /// </summary>
-        /// <typeparam name="TContract">Registers this type so it is available for resolving.</typeparam>
-        /// <param name="func">This Func will be invoked and TResult will be returned when resolving TContract.</param>
+        /// <inheritdoc />
         public void RegisterFunc<TContract>(Func<TContract> func)
         {
             if (func == null)
@@ -50,53 +35,62 @@ namespace IoC.Source
             _typeToFunc[typeof(TContract)] = new FuncWrapper<TContract>(func);
         }
 
-        /// <summary>
-        ///     Creates an instance of T. Resolves all dependencies automatically.
-        /// </summary>
-        /// <typeparam name="T">Type to resolve.</typeparam>
-        /// <returns>An instance of T</returns>
+        /// <inheritdoc />
         public T Resolve<T>()
         {
-            var resolvedTypes = new List<Type>();
-            return (T)Resolve(typeof(T), resolvedTypes);
+            var history = new HashSet<Type>();
+            try
+            {
+                var obj = (T) Resolve(typeof(T), history);
+                return obj;
+            }
+            catch (Exception e)
+            {
+                // Because the exceptions can be wrapped in TargetInvocationExceptions,
+                // I rethrow the InnerException to preserve the expected interface.
+                // And no I don't like doing this, but it works.
+                if (e.InnerException is CircularDependencyException ||
+                    e.InnerException is NoAvailableConstructorException ||
+                    e.InnerException is NotRegisteredException)
+                    throw e.InnerException;
+                throw;
+            }
         }
 
-        private object Resolve(Type contract, IList<Type> resolvedTypes)
+        protected object Resolve(Type type, HashSet<Type> history)
         {
             // Check if we aren't resolving anything twice.
-            if (resolvedTypes.Contains(contract))
-                throw new CircularDependencyException(contract);
+            if (history.Contains(type))
+                throw new CircularDependencyException(type);
 
             // If the type is registered as instance, return the instance.
-            if (_typeToInstance.ContainsKey(contract))
-                return _typeToInstance[contract];
+            if (_typeToInstance.ContainsKey(type))
+                return _typeToInstance[type];
 
             // If the type is registered as Func, invoke the Func and return the result.
-            if (_typeToFunc.ContainsKey(contract))
-                return _typeToFunc[contract].Invoke();
+            if (_typeToFunc.ContainsKey(type))
+                return _typeToFunc[type].Invoke();
 
             // Add contract to resolvedTypes so we can detect circular dependencies.
-            resolvedTypes.Add(contract);
+            history.Add(type);
 
             // Get the actual type to construct.
-            var implementation = GetImplementation(contract);
-
+            var implementation = GetImplementation(type);
             var ctor = GetConstructor(implementation);
-            ParameterInfo[] ctorParams = ctor.GetParameters();
-
-            // If there are no parameters we can resolve this immediately. Otherwise call resolve recursively.
-            var obj = ctorParams.Length == 0
-                ? Activator.CreateInstance(implementation)
-                : ctor.Invoke(ResolveParameters(ctorParams, resolvedTypes).ToArray());
+            var ctorParams = ctor.GetParameters();
+            var obj = CreateObject(implementation, ctor, ctorParams, history);
 
             // Inject any properties that request injection.
-            ResolveProperties(obj, resolvedTypes);
+            ResolveProperties(obj, history);
 
             // Remove contract from resolvedTypes. Only the current branch may not have duplicates.
-            resolvedTypes.Remove(contract);
+            history.Remove(type);
 
             return obj;
         }
+
+        protected abstract object CreateObject
+            (Type type, ConstructorInfo ctor, IEnumerable<ParameterInfo> ctorParams, HashSet<Type> resolvedTypes);
 
         private Type GetImplementation(Type contract)
         {
@@ -108,25 +102,20 @@ namespace IoC.Source
             return _typeToType[contract];
         }
 
-        private void ResolveProperties(object obj, IList<Type> resolvedTypes)
+        private void ResolveProperties(object obj, HashSet<Type> resolvedTypes)
         {
             // Get all properties of object.
-            PropertyInfo[] properties = obj.GetType().GetProperties();
+            var properties = obj.GetType().GetProperties();
 
             // Get a list of all properties with the inject attribute.
-            List<PropertyInfo> injectionProperties =
-                properties.Where(property => property.GetCustomAttributes().OfType<InjectPropertyAttribute>().Any()).ToList();
+            var injectionProperties =
+                properties.Where(p => p.GetCustomAttributes().OfType<InjectPropertyAttribute>().Any()).ToList();
 
             // Inject every property.
             foreach (var property in injectionProperties)
             {
                 property.SetValue(obj, Resolve(property.PropertyType, resolvedTypes), null);
             }
-        }
-
-        private IEnumerable<object> ResolveParameters(IEnumerable<ParameterInfo> ctorParams, IList<Type> resolvedTypes)
-        {
-            return ctorParams.Select(parameterInfo => Resolve(parameterInfo.ParameterType, resolvedTypes)).ToList();
         }
 
         private void TryAddContract(Type contract)
@@ -138,9 +127,10 @@ namespace IoC.Source
             // If the type is not in _types and it is not an interface. Add it to _types.
             _typeToType.Add(contract, contract);
         }
+
         private static ConstructorInfo GetConstructor(Type implementation)
         {
-            ConstructorInfo[] constructors = implementation.GetConstructors();
+            var constructors = implementation.GetConstructors();
             if (constructors.Length == 0)
                 throw new NoAvailableConstructorException(implementation);
 
