@@ -1,4 +1,5 @@
-﻿using IoC.Tests.ContainerTestClasses.Mock;
+﻿using IoC.Source.Attributes;
+using IoC.Tests.ContainerTestClasses.Mock;
 
 namespace IoC.Tests.ContainerTestClasses
 {
@@ -8,7 +9,10 @@ namespace IoC.Tests.ContainerTestClasses
         public IMockService Service1 { get; set; }
         public IMockService Service2 { get; set; }
 
-        public MultipleDependenciesAndInterface(IMockService iService, MockService1 service1, MockService2 service2)
+        public MultipleDependenciesAndInterface(
+            IMockService iService, 
+            MockService1 service1, 
+            MockService2 service2)
         {
             InterfaceService = iService;
             Service1 = service1;

@@ -85,7 +85,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Source\AbstractContainer.cs" />
-    <Compile Include="Source\Attributes\InjectConstructorAttribute.cs" />
+    <Compile Include="Source\Attributes\InjectionAttributes.cs" />
+    <Compile Include="Source\Cache.cs" />
     <Compile Include="Source\CompiledContainer.cs" />
     <Compile Include="Source\Exceptions\CircularDependencyException.cs" />
     <Compile Include="Source\Exceptions\NoAvailableConstructorException.cs" />
