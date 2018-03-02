@@ -20,5 +20,9 @@ var service2 = container.Resolve<Service>();
         return new ServiceImpl();
     });
 var service3 = container.Resolve<Service>();
-> Creating new service . . .
 ```
+
+#Output
+'''
+ Creating new service . . .
+'''
