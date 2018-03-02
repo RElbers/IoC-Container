@@ -22,7 +22,7 @@ var service2 = container.Resolve<Service>();
 var service3 = container.Resolve<Service>();
 ```
 
-#Output
+# Output
 
 ```
  Creating new service . . .
