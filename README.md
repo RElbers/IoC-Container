@@ -7,18 +7,18 @@ Inversion of Control container for C#. Internally uses (cached) factory methods 
 var container = new CompiledContainer();
 
 // Register interface
-container.RegisterType<IService, ServiceImpl>();
-var service1 = container.Resolve<IService>();
+container.RegisterType<IService, Service>();
+var service1 = container.Resolve<Service>();
 
 // Register singleton object
-container.RegisterInstance(new ServiceImpl());
+container.RegisterInstance(new Service());
 var service2 = container.Resolve<Service>();
 
 // Register factory method
-container.RegisterFunc(() =>   {
-        Console.WriteLine("Creating new service . . .");
-        return new ServiceImpl();
-    });
+container.RegisterFunc(() => {
+Console.WriteLine("Creating new service . . .");
+return new Service();
+});
 var service3 = container.Resolve<Service>();
 ```
 
